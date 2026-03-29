@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teste GPS · PMRv SC</title>
+  <style>
+    :root {
+      --primary: #07090f;
+      --accent: #3b82f6;
+      --success: #22c55e;
+      --surface: #ffffff;
+      --text: #1e293b;
+    }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f1f5f9;
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 20px;
+      margin: 0;
+    }
+    .container { width: 100%; max-width: 400px; }
+    .card {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      border: 1px solid #e2e8f0;
+    }
+    .header { text-align: center; margin-bottom: 20px; }
+    .header h1 { font-size: 1.2rem; margin: 0; color: var(--primary); }
+    .header p { font-size: 0.9rem; color: #64748b; }
+    
+    .btn {
+      width: 100%;
+      padding: 16px;
+      border: none;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.1s;
+      margin-bottom: 10px;
+    }
+    .btn-gps { background: var(--accent); color: white; }
+    .btn-copy { background: var(--success); color: white; display: none; }
+    .btn:active { transform: scale(0.98); }
+
+    .result-area {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 12px;
+      background: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      display: none;
+      text-align: center;
+    }
+    .rodovia-name { font-size: 1.4rem; font-weight: 800; color: var(--accent); display: block; }
+    .km-value { font-size: 2rem; font-weight: 900; display: block; margin: 5px 0; }
+    .details { font-size: 0.75rem; color: #94a3b8; line-height: 1.4; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="card">
+    <div class="header">
+      <h1>📍 Patrulhamento Rápido</h1>
+      <p>Teste de Localização PMRv - Posto 19</p>
+    </div>
+
+    <button class="btn btn-gps" onclick="obterLocalizacao()">🔍 Onde estou agora?</button>
+
+    <div id="result-box" class="result-area">
+      <span id="txt-rodovia" class="rodovia-name">Detectando...</span>
+      <span id="txt-km" class="km-value">KM ---</span>
+      
+      <div id="txt-details" class="details"></div>
+      
+      <button id="btn-copy" class="btn btn-copy" style="margin-top:15px;" onclick="copiar()">📋 Copiar Localização</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Coordenadas aproximadas do KM 0 para as rodovias solicitadas
+const basesSC = {
+    "SC-401": { lat: -27.4611, lon: -48.5028 }, // Início Itacorubi/Centro
+    "SC-405": { lat: -27.6441, lon: -48.5135 }, // Rio Tavares
+    "SC-406": { lat: -27.5755, lon: -48.4355 }, // Barra da Lagoa
+    "SC-281": { lat: -27.6044, lon: -48.6558 }, // São José
+    "SC-407": { lat: -27.4950, lon: -48.6580 }  // Biguaçu
+};
+
+function calcularDistancia(lat1, lon1, lat2, lon2) {
+    const R = 6371; 
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return (R * c).toFixed(3);
+}
+
+function obterLocalizacao() {
+    const box = document.getElementById('result-box');
+    const txtRodovia = document.getElementById('txt-rodovia');
+    const txtKM = document.getElementById('txt-km');
+    const txtDetails = document.getElementById('txt-details');
+    const btnCopy = document.getElementById('btn-copy');
+
+    box.style.display = 'block';
+    txtRodovia.innerText = "🛰️ Buscando sinal...";
+    txtKM.innerText = "Aguarde";
+
+    if (!navigator.geolocation) {
+        alert("Seu navegador não suporta GPS.");
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition((pos) => {
+        const { latitude, longitude, accuracy } = pos.coords;
+        let menorDist = Infinity;
+        let rodovia = "Rodovia não identificada";
+        let km = "0.000";
+
+        // Busca a rodovia mais próxima (Cálculo em relação ao KM 0)
+        for (const [nome, ponto] of Object.entries(basesSC)) {
+            const d = parseFloat(calcularDistancia(latitude, longitude, ponto.lat, ponto.lon));
+            if (d < menorDist) {
+                menorDist = d;
+                rodovia = nome;
+                km = d.toFixed(3);
+            }
+        }
+
+        txtRodovia.innerText = "🛣️ " + rodovia;
+        txtKM.innerText = "KM " + km;
+        txtDetails.innerHTML = `Precisão: +/- ${accuracy.toFixed(1)}m<br>Lat: ${latitude.toFixed(5)} | Lon: ${longitude.toFixed(5)}`;
+        btnCopy.style.display = 'block';
+
+    }, (err) => {
+        alert("Erro no iPhone: Verifique se o GPS está ativo e se permitiu o acesso no navegador.");
+        txtRodovia.innerText = "Erro de GPS";
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+}
+
+function copiar() {
+    const rodovia = document.getElementById('txt-rodovia').innerText;
+    const km = document.getElementById('txt-km').innerText;
+    const texto = `${rodovia} - ${km}`;
+    navigator.clipboard.writeText(texto);
+    alert("Copiado: " + texto);
+}
+</script>
+
+</body>
+</html>
